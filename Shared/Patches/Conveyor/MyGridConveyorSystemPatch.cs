@@ -147,11 +147,11 @@ namespace Shared.Patches
             IMyConveyorEndpoint from,
             IMyConveyorEndpoint to,
             ref bool __result,
-            ref (UintCache<ulong>, ulong) __state)
+            ref (UintCache<ulong>, ulong, int) __state)
         {
             if (!Config.FixConveyor)
             {
-                __state = (null, 0);
+                __state = (null, 0, 0);
                 return true;
             }
 
@@ -172,11 +172,11 @@ namespace Shared.Patches
                     return false;
                 }
 
-                __state = (cache, key);
+                __state = (cache, key, cache.Generation);
             } catch (ArgumentNullException)
             {
                 Log.Warning("Safely suppressed a crash in MyGridConveyorSystemPatch.ReachablePrefix (from={0}, to={1})", from?.CubeBlock.EntityId ?? 0, to?.CubeBlock.EntityId ?? 0);
-                __state = (null, 0);
+                __state = (null, 0, 0);
             }
 
             return true;
@@ -187,13 +187,12 @@ namespace Shared.Patches
         [EnsureCode("73bf029a")]
         private static void ReachablePostfix(
             bool __result,
-            ref (UintCache<ulong>, ulong) __state)
+            ref (UintCache<ulong>, ulong, int) __state)
         {
-            __state.Item1?.Store(__state.Item2, __result ? 1u : 0u, 999999999);
+            __state.Item1?.Store(__state.Item2, __result ? 1u : 0u, 999999999, __state.Item3);
         }
 
-        // The game calls this whenever conveyor connectivity may change without a block or
-        // group change, e.g. lines losing or regaining power, sorter or ownership changes
+        // Called when conveyor connectivity changes without a block or group change (e.g. lines losing power)
         [HarmonyPostfix]
         [HarmonyPatch(nameof(MyGridConveyorSystem.FlagForRecomputation))]
         [EnsureCode("ce91ca1e")]

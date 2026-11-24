@@ -17,6 +17,8 @@ namespace Shared.Tools
 
         private readonly RwLockDictionary<TK, ulong> cache = new RwLockDictionary<TK, ulong>();
 
+        public int Generation { get; private set; }
+
 #if DEBUG
         public readonly CacheStat Stat = new CacheStat();
         public bool HasItems => cache.Count != 0;
@@ -70,6 +72,7 @@ namespace Shared.Tools
         public void Clear()
         {
             cache.BeginWriting();
+            Generation++;
             cache.Clear();
             cache.FinishWriting();
         }
@@ -80,6 +83,17 @@ namespace Shared.Tools
             var expires = tick + ((ulong)lifetime << 32);
             cache.BeginWriting();
             cache[key] = expires | value;
+            cache.FinishWriting();
+        }
+
+        // Stores only if the cache was not cleared since the caller read Generation
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Store(TK key, uint value, uint lifetime, int generation)
+        {
+            var expires = tick + ((ulong)lifetime << 32);
+            cache.BeginWriting();
+            if (generation == Generation)
+                cache[key] = expires | value;
             cache.FinishWriting();
         }
 
