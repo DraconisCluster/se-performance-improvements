@@ -99,7 +99,7 @@ namespace Shared.Tools
             if (IsAllowed(methodBodyHash))
                 yield break;
 
-            yield return new CodeChange(patchedMethod, patchedConstructor, allowedHashes, methodBodyHash);
+            yield return new CodeChange(patchedMethod, patchedConstructor, allowedHashes, methodBodyHash, patchType);
         }
     }
 }
