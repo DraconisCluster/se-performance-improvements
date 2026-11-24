@@ -76,13 +76,8 @@ namespace Shared.Patches
             try
             {
                 // Same as harmony.PatchAll, except for the skipped classes
-                foreach (var type in AccessTools.GetTypesFromAssembly(Assembly.GetExecutingAssembly()))
+                foreach (var type in AccessTools.GetTypesFromAssembly(Assembly.GetExecutingAssembly()).Where(t => t.HasHarmonyAttribute()))
                 {
-                    // PatchAll processes only these, others may have methods Harmony would mistake
-                    // for auxiliary patch methods (Prepare, Cleanup, TargetMethod...)
-                    if (!type.HasHarmonyAttribute())
-                        continue;
-
                     if (skippedPatchTypes.Contains(type))
                     {
                         log.Critical($"Patch class {type.Name} is NOT applied, because the game code it targets has changed");
@@ -96,9 +91,7 @@ namespace Shared.Patches
             {
                 log.Critical(ex, "Failed to apply Harmony patches");
 
-                // Harmony does not roll back the patches applied before the failure. Remove them,
-                // because the caller stops updating the plugin, which the caches of the patches
-                // already applied depend on.
+                // Harmony does not roll back the patches applied before the failure
                 try
                 {
                     harmony.UnpatchAll(harmony.Id);
@@ -111,38 +104,17 @@ namespace Shared.Patches
                 return false;
             }
 
-            if (skippedPatchTypes.Count != 0)
-                log.Critical($"{skippedPatchTypes.Count} patch classes are NOT applied, the plugin needs an update for this game version");
-
             return true;
         }
 
-        // Patch classes which work only together: one caches what the others invalidate.
-        // If the target of any of them changes, then all of them are left out.
-        private static readonly string[][] PatchGroups =
+        // Patch classes which work only together: one caches what the others invalidate
+        private static readonly Type[][] PatchGroups =
         {
-            new[]
-            {
-                nameof(MyGridConveyorSystemPatch),
-                nameof(MyCubeGridPatchForConveyor),
-                nameof(MyCubeBlockPatchForConveyor),
-                nameof(MyShipConnectorPatchForConveyor),
-            },
-            new[]
-            {
-                nameof(MyCubeGridPatchForMergeAndPaste),
-                nameof(MyConveyorLinePatch),
-            },
+            new[] { typeof(MyGridConveyorSystemPatch), typeof(MyCubeGridPatchForConveyor), typeof(MyCubeBlockPatchForConveyor), typeof(MyShipConnectorPatchForConveyor) },
         };
 
-        private static IEnumerable<Type> GetDependentPatchTypes(Type patchType)
-        {
-            var group = PatchGroups.FirstOrDefault(g => g.Contains(patchType.Name));
-            if (group == null)
-                return new[] { patchType };
-
-            return AccessTools.GetTypesFromAssembly(patchType.Assembly).Where(t => group.Contains(t.Name));
-        }
+        private static IEnumerable<Type> GetDependentPatchTypes(Type patchType) =>
+            PatchGroups.FirstOrDefault(g => g.Contains(patchType)) ?? new[] { patchType };
 
         // Called after loading configuration, but before patching
         public static void Configure()

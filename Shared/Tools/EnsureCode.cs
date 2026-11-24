@@ -65,7 +65,10 @@ namespace Shared.Tools
 
             var patchedType = methodPatch.info.declaringType ?? patchType.GetCustomAttributes<HarmonyPatch>().FirstOrDefault()?.info.declaringType;
             if (patchedType == null)
-                throw new Exception($"Could not determine the patched type for patch method {patchType.Name}.{patchMethod.Name}");
+            {
+                yield return new CodeChange(null, null, allowedHashes, "missing", patchType);
+                yield break;
+            }
 
             MethodInfo patchedMethod = null;
             ConstructorInfo patchedConstructor = null;
@@ -93,7 +96,10 @@ namespace Shared.Tools
             }
 
             if (patchedMethod == null && patchedConstructor == null)
-                throw new Exception($"Could not get patched method information for {patchType.Name}.{patchMethod.Name}");
+            {
+                yield return new CodeChange(null, null, allowedHashes, "missing", patchType);
+                yield break;
+            }
 
             var methodBodyHash = (patchedMethod != null ? patchedMethod.HashBody() : patchedConstructor.HashBody()).ToString("x8");
             if (IsAllowed(methodBodyHash))
