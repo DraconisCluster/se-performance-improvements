@@ -209,7 +209,7 @@ namespace Shared.Patches
             try
             {
                 // Write a unique temp file and move it into place, so readers never see a partial file
-                var tempPath = $"{cachePath}.{Guid.NewGuid():N}.tmp";
+                var tempPath = $"{cachePath}.{Guid.NewGuid():N}.tmp.cache";
                 try
                 {
                     using (var fileStream = File.Create(tempPath))
