@@ -170,10 +170,7 @@ namespace Shared.Patches
                 }
                 catch (IOException)
                 {
-                    // All I/O errors are retried for 1 second
-                    // This exception can happen on trying to compile the same script multiple times concurrently:
-                    // HResult = -2147024864
-                    // Message = "The process cannot access the file 'C:\Torch\Instance\PerformanceImprovements\Cache\CompiledInGameScripts\9daecd2c41d387772f8edcc792da89a6b776ec2e.cache' because it is being used by another process."
+                    // Retried for 1 second, e.g. while antivirus holds the file
                 }
                 catch (Exception e1)
                 {
@@ -223,8 +220,7 @@ namespace Shared.Patches
                 }
                 finally
                 {
-                    if (File.Exists(tempPath))
-                        File.Delete(tempPath);
+                    File.Delete(tempPath);
                 }
             }
             catch (IOException e)
@@ -277,7 +273,7 @@ namespace Shared.Patches
                     foreach (var symbol in symbols)
                         writer.Write(symbol);
 
-                    // The game enumerates the script files of a mod in a stable order, which also affects the compiled assembly
+                    // Scripts in compilation order
                     foreach (var script in scripts)
                     {
                         writer.Write(script.Name ?? "");

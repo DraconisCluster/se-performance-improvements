@@ -52,9 +52,7 @@ namespace Shared.Patches
         public static string IsSafeCacheReport => IsSafeCache.Report;
 #endif
 
-        // IsSafe answers for one zone: its player and faction lists, and since 1.211.017 the
-        // faction owning its safe zone block (NPC bots of that faction are safe). So the key
-        // combines the zone and the entity, as for IsActionAllowed.
+        // IsSafe depends on the zone, so the key combines the zone and the entity
         [HarmonyPrefix]
         [HarmonyPatch("IsSafe")]
         [EnsureCode("569da41e")]
