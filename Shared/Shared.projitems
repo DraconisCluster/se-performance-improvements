@@ -41,7 +41,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)Logging\LogFormatter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Logging\PluginLogger.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Patches\Bullshit\GcCollectPatch.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Patches\Bullshit\MyP2PQoSAdapterPatch.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Patches\Bullshit\PerfCountingRewriterPatch.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Patches\Character\MyCharacterPatch.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Patches\Conveyor\MyPathFindingSystemEnumeratorPatch.cs" />
