@@ -42,6 +42,7 @@ namespace TorchPlugin
         private ConfigView control;
 
         private TorchSessionManager sessionManager;
+        private Harmony harmony;
 
         private bool initialized;
         private bool failed;
@@ -79,7 +80,8 @@ namespace TorchPlugin
             Common.SetPlugin(this, gameVersion, StoragePath);
 
 #if USE_HARMONY
-            if (!PatchHelpers.HarmonyPatchAll(Log, new Harmony(Name)))
+            harmony = new Harmony(Name);
+            if (!PatchHelpers.HarmonyPatchAll(Log, harmony))
             {
                 failed = true;
                 return;
@@ -145,6 +147,16 @@ namespace TorchPlugin
             {
                 Log.Critical(e, "Update failed");
                 failed = true;
+
+                // The caches of the patches expire only while Tick is advancing
+                try
+                {
+                    harmony.UnpatchAll(harmony.Id);
+                }
+                catch (Exception unpatchException)
+                {
+                    Log.Critical(unpatchException, "Failed to remove the Harmony patches");
+                }
             }
         }
 
