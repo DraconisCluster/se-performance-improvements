@@ -7,7 +7,6 @@
 *.rsuser
 *.suo
 *.user
-# Local folder overrides imported by Directory.Build.props (matched by *.user above)
 *.userosscache
 *.sln.docstates
 
@@ -361,9 +360,3 @@ MigrationBackup/
 
 # JetBrains Rider project files
 /.idea/
-
-# Claude Code
-.claude
-
-# Plugin specific
-*.il

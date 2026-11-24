@@ -18,17 +18,6 @@ namespace Shared.Patches
     public static class MyStorageExtensionsPatch
     {
         private static IPluginConfig Config => Common.Config;
-
-        // Applied only while the option is on, see OptionalPatch
-        private static readonly OptionalPatch Optional = new OptionalPatch(
-            typeof(MyStorageExtensionsPatch),
-            () => Config.Enabled && Config.FixVoxel
-        );
-
-        private static bool Prepare() => Optional.Prepare();
-
-        public static void Update() => Optional.Update();
-
         private static bool enabled;
 
         public static void Configure()
@@ -60,18 +49,12 @@ namespace Shared.Patches
         // ReSharper disable once UnusedMember.Local
         // ReSharper disable once InconsistentNaming
         [HarmonyPrefix]
-        [HarmonyPatch(
-            nameof(IMyStorageExtensions.GetMaterialAt),
+        [HarmonyPatch(nameof(IMyStorageExtensions.GetMaterialAt),
             new[] { typeof(IMyStorage), typeof(Vector3I) },
-            new[] { ArgumentType.Normal, ArgumentType.Ref }
-        )]
+            new[] { ArgumentType.Normal, ArgumentType.Ref })]
         [EnsureCode("d214d704")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool GetMaterialAtVector3IPrefix(
-            IMyStorage self,
-            ref Vector3I voxelCoords,
-            ref MyVoxelMaterialDefinition __result
-        )
+        private static bool GetMaterialAtVector3IPrefix(IMyStorage self, ref Vector3I voxelCoords, ref MyVoxelMaterialDefinition __result)
         {
             if (!enabled)
                 return true;
@@ -90,19 +73,10 @@ namespace Shared.Patches
             target.ClearContent(0);
             target.ClearMaterials(0);
 
-            self.ReadRange(
-                target,
-                MyStorageDataTypeFlags.ContentAndMaterial,
-                0,
-                voxelCoords,
-                voxelCoords
-            );
+            self.ReadRange(target, MyStorageDataTypeFlags.ContentAndMaterial, 0, voxelCoords, voxelCoords);
 
             var materialIndex = target.Material(0);
-            __result =
-                materialIndex == 255
-                    ? null
-                    : MyDefinitionManager.Static.GetVoxelMaterialDefinition(materialIndex);
+            __result = materialIndex == 255 ? null : MyDefinitionManager.Static.GetVoxelMaterialDefinition(materialIndex);
 
             Used[i] = 0;
 

@@ -4,7 +4,6 @@ using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Shared.Config;
 using Shared.Plugin;
-using Shared.Stats;
 using Shared.Tools;
 using SpaceEngineers.Game.Entities.Blocks;
 
@@ -15,15 +14,6 @@ namespace Shared.Patches
     public static class MyWindTurbinePatch
     {
         private static IPluginConfig Config => Common.Config;
-
-        // Applied only while the option is on, see OptionalPatch
-        private static readonly OptionalPatch Optional = new OptionalPatch(
-            typeof(MyWindTurbinePatch),
-            () => Config.Enabled && Config.FixWindTurbine
-        );
-
-        private static bool Prepare() => Optional.Prepare();
-
         private static bool enabled;
 
         public static void Configure()
@@ -44,31 +34,16 @@ namespace Shared.Patches
                 Cache.Clear();
         }
 
-        private static readonly UintCache<long> Cache = new UintCache<long>(
-            111 * 60,
-            collectStats: true
-        );
+        private static readonly UintCache<long> Cache = new UintCache<long>(111 * 60);
+
+#if DEBUG
+        public static string CacheReport => Cache.Report;
+#endif
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Update()
         {
-            Optional.Update();
-
             Cache.Cleanup();
-        }
-
-        // Reads the cache hit-rate counters into the snapshot, resetting them.
-        public static void CaptureStatistics(StatisticsSnapshot snapshot)
-        {
-            var sample = Cache.Sample();
-            snapshot.Caches.Add(
-                new CacheStatEntry(
-                    "WindTurbine.IsInAtmosphere",
-                    sample.Lookups,
-                    sample.Hits,
-                    sample.Size
-                )
-            );
         }
 
         // ReSharper disable once UnusedMember.Local
@@ -76,11 +51,7 @@ namespace Shared.Patches
         [HarmonyPatch("IsInAtmosphere", MethodType.Getter)]
         [EnsureCode("641370cb")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool IsInAtmosphereGetterPrefix(
-            MyWindTurbine __instance,
-            ref bool __result,
-            ref bool __state
-        )
+        private static bool IsInAtmosphereGetterPrefix(MyWindTurbine __instance, ref bool __result, ref bool __state)
         {
             if (!enabled)
                 return true;
@@ -100,11 +71,7 @@ namespace Shared.Patches
         [HarmonyPatch("IsInAtmosphere", MethodType.Getter)]
         [EnsureCode("641370cb")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void IsInAtmosphereGetterPostfix(
-            MyWindTurbine __instance,
-            ref bool __result,
-            bool __state
-        )
+        private static void IsInAtmosphereGetterPostfix(MyWindTurbine __instance, ref bool __result, bool __state)
         {
             if (!__state)
                 return;

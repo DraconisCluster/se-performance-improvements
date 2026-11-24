@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
 
 namespace Shared.Tools
 {
@@ -7,22 +8,33 @@ namespace Shared.Tools
     {
         private int counter;
 
-        public RwLockHashSet() { }
+        public RwLockHashSet()
+        {
+        }
 
-        public RwLockHashSet(int capacity)
-            : base(capacity) { }
+        public RwLockHashSet(int capacity) : base(capacity)
+        {
+        }
 
-        public RwLockHashSet(IEqualityComparer<T> comparer)
-            : base(comparer) { }
+        public RwLockHashSet(IEqualityComparer<T> comparer) : base(comparer)
+        {
+        }
 
-        public RwLockHashSet(int capacity, IEqualityComparer<T> comparer)
-            : base(capacity, comparer) { }
+        public RwLockHashSet(int capacity, IEqualityComparer<T> comparer) : base(capacity, comparer)
+        {
+        }
 
-        public RwLockHashSet(IEnumerable<T> set)
-            : base(set) { }
+        public RwLockHashSet(IEnumerable<T> set) : base(set)
+        {
+        }
 
-        public RwLockHashSet(IEnumerable<T> set, IEqualityComparer<T> comparer)
-            : base(set, comparer) { }
+        public RwLockHashSet(IEnumerable<T> set, IEqualityComparer<T> comparer) : base(set, comparer)
+        {
+        }
+
+        protected RwLockHashSet(SerializationInfo info, StreamingContext context) : base(info, context)
+        {
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void BeginReading()

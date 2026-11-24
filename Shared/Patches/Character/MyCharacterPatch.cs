@@ -22,18 +22,11 @@ namespace Shared.Patches
             enabled = Config.Enabled && Config.FixCharacter;
         }
 
-        // The transpiler changes the method only at startup, so with the option off it is not
-        // applied at all. Harmony's copy of the method would be slower than the game's own.
-        private static bool Prepare() => enabled;
-
         // ReSharper disable once UnusedMember.Local
         [HarmonyTranspiler]
         [HarmonyPatch("RigidBody_ContactPointCallback")]
         [EnsureCode("b405587f")]
-        private static IEnumerable<CodeInstruction> RigidBody_ContactPointCallbackTranspiler(
-            IEnumerable<CodeInstruction> instructions,
-            MethodBase patchedMethod
-        )
+        private static IEnumerable<CodeInstruction> RigidBody_ContactPointCallbackTranspiler(IEnumerable<CodeInstruction> instructions, MethodBase patchedMethod)
         {
             if (!enabled)
                 return instructions;
@@ -52,9 +45,7 @@ namespace Shared.Patches
         {
             var otherPhysicsBody = il.GetField(fi => fi.Name.Contains("otherPhysicsBody"));
 
-            var i = il.FindIndex(ci =>
-                ci.opcode == OpCodes.Ldfld && ci.operand as FieldInfo == otherPhysicsBody
-            );
+            var i = il.FindIndex(ci => ci.opcode == OpCodes.Ldfld && ci.operand as FieldInfo == otherPhysicsBody);
 
             Debug.Assert(il[i + 1].opcode == OpCodes.Brfalse);
             var skipRenderingFootprints = (Label)il[i + 1].operand;
@@ -62,32 +53,15 @@ namespace Shared.Patches
             Debug.Assert(il[i - 1].opcode == OpCodes.Ldloc_0);
             i--;
 
-            il.Insert(
-                i++,
-                new CodeInstruction(
-                    OpCodes.Call,
-                    AccessTools.PropertyGetter(typeof(Sandbox.Game.Multiplayer.Sync), "IsDedicated")
-                )
-            );
+            il.Insert(i++, new CodeInstruction(OpCodes.Call, AccessTools.PropertyGetter(typeof(Sandbox.Game.Multiplayer.Sync), "IsDedicated")));
             il.Insert(i, new CodeInstruction(OpCodes.Brtrue, skipRenderingFootprints));
         }
 
         private static void DisableBodyContactAudioOnServer(List<CodeInstruction> il)
         {
-            var j =
-                il.FindIndex(ci =>
-                    ci.opcode == OpCodes.Ldfld
-                    && ci.operand is FieldInfo fi
-                    && fi.Name.Contains("m_canPlayImpact")
-                ) - 4;
+            var j = il.FindIndex(ci => ci.opcode == OpCodes.Ldfld && ci.operand is FieldInfo fi && fi.Name.Contains("m_canPlayImpact")) - 4;
             var skipContactSound = (Label)il[j + 2].operand;
-            il.Insert(
-                j++,
-                new CodeInstruction(
-                    OpCodes.Call,
-                    AccessTools.PropertyGetter(typeof(Sandbox.Game.Multiplayer.Sync), "IsDedicated")
-                )
-            );
+            il.Insert(j++, new CodeInstruction(OpCodes.Call, AccessTools.PropertyGetter(typeof(Sandbox.Game.Multiplayer.Sync), "IsDedicated")));
             il.Insert(j, new CodeInstruction(OpCodes.Brtrue, skipContactSound));
         }
     }

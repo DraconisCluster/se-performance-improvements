@@ -1,11 +1,11 @@
+// #define LIST_ALL_TYPES
+
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
 using Shared.Logging;
 using Shared.Plugin;
-using Shared.Stats;
 using Shared.Tools;
 
 namespace Shared.Patches
@@ -13,125 +13,62 @@ namespace Shared.Patches
     // ReSharper disable once UnusedType.Global
     public static class PatchHelpers
     {
-        // Harmony patch category for patches that must be deferred to IPlugin.Init because their
-        // target type lives in an assembly that is not loaded yet at the dedicated server's early
-        // bootstrap point (e.g. VRage.EOS). Every patch without this category is applied early.
-        public const string LateCategory = "Late";
-
-        // Harmony patch category for patches which must already be in place when the game starts
-        // its own startup work, before IPlugin.Init runs on the client. Both sides apply this
-        // category from the MyInitializer.InvokeBeforeRun hook installed by the Preloader.
-        public const string EarlyCategory = "Early";
-
-        public static bool HarmonyPatchAll(
-            IPluginLogger log,
-            Harmony harmony,
-            bool handleExceptions = true
-        )
+        public static bool HarmonyPatchAll(IPluginLogger log, Harmony harmony, bool handleExceptions = true)
         {
-            return VerifyAndApply(
-                log,
-                harmony,
-                handleExceptions,
-                EnsureCode.Verify,
-                () => harmony.PatchAll(Assembly.GetExecutingAssembly()),
-                "all patches"
-            );
-        }
-
-        // Applies the uncategorized patches: everything except the deferred "Late" category. Used
-        // by the dedicated server's early bootstrap, before world-load compilation. Patches whose
-        // target assembly is not loaded yet carry a category and are applied later from Init.
-        public static bool HarmonyPatchUncategorized(
-            IPluginLogger log,
-            Harmony harmony,
-            bool handleExceptions = true
-        )
-        {
-            return VerifyAndApply(
-                log,
-                harmony,
-                handleExceptions,
-                EnsureCode.VerifyUncategorized,
-                () => harmony.PatchAllUncategorized(Assembly.GetExecutingAssembly()),
-                "uncategorized patches"
-            );
-        }
-
-        // Applies only the patches in the given category, verifying only those first.
-        public static bool HarmonyPatchCategory(
-            IPluginLogger log,
-            Harmony harmony,
-            string category,
-            bool handleExceptions = true
-        )
-        {
-            return VerifyAndApply(
-                log,
-                harmony,
-                handleExceptions,
-                () => EnsureCode.VerifyCategory(category),
-                () => harmony.PatchCategory(Assembly.GetExecutingAssembly(), category),
-                $"category '{category}'"
-            );
-        }
-
-        // Shared scaffold: verify the targeted game methods still match, then apply the patches.
-        private static bool VerifyAndApply(
-            IPluginLogger log,
-            Harmony harmony,
-            bool handleExceptions,
-            Func<IEnumerable<CodeChange>> verify,
-            Action apply,
-            string what
-        )
-        {
-            log.Debug($"Scanning for conflicting code changes ({what})");
-            var throwOnFailedVerification =
-                !handleExceptions
-                || Environment.GetEnvironmentVariable(
-                    "SE_PLUGIN_THROW_ON_FAILED_METHOD_VERIFICATION"
-                ) != null;
-            try
+#if DEBUG && LIST_ALL_TYPES
+            log.Info("All types:");
+            foreach (var typ in AccessTools.AllTypes())
             {
-                var codeChanges = verify().ToList();
-                if (codeChanges.Count != 0)
-                {
-                    log.Critical("Detected conflicting code changes:");
-                    foreach (var codeChange in codeChanges)
-                        log.Info(codeChange.ToString());
+                log.Info(typ.FullName);
+            }
+#endif
 
+            var isOldDotNetFramework = Environment.Version.Major < 5;
+            if (isOldDotNetFramework &&
+                Common.Plugin.Config.DetectCodeChanges &&
+                Environment.GetEnvironmentVariable("SE_PLUGIN_DISABLE_METHOD_VERIFICATION") == null &&
+                !WineDetector.IsRunningInWineOrProton())
+            {
+                log.Debug("Scanning for conflicting code changes");
+                var throwOnFailedVerification = !handleExceptions || Environment.GetEnvironmentVariable("SE_PLUGIN_THROW_ON_FAILED_METHOD_VERIFICATION") != null;
+                try
+                {
+                    var codeChanges = EnsureCode.Verify().ToList();
+                    if (codeChanges.Count != 0)
+                    {
+                        log.Critical("Detected conflicting code changes:");
+                        foreach (var codeChange in codeChanges)
+                            log.Info(codeChange.ToString());
+                        
+                        if (throwOnFailedVerification)
+                        {
+                            throw new Exception("Detected conflicting code changes");
+                        }
+                        
+                        return false;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    log.Error(ex, "Failed to scan for conflicting code changes");
+                    
                     if (throwOnFailedVerification)
                     {
-                        throw new Exception("Detected conflicting code changes");
+                        throw;
                     }
-
+                    
                     return false;
                 }
             }
-            catch (Exception ex)
+            else
             {
-                log.Error(ex, "Failed to scan for conflicting code changes");
-
-                if (throwOnFailedVerification)
-                {
-                    throw;
-                }
-
-                return false;
+                log.Warning("Conflicting code change detection is disabled in plugin configuration");
             }
 
-            log.Debug($"Applying Harmony patches ({what})");
-
-            // Snapshot the methods this Harmony id has already patched so that, after applying, we
-            // can report exactly the ones this phase added. GetPatchedMethods() is scoped to
-            // harmony.Id, but the dedicated server applies patches in two phases under the same id
-            // (uncategorized early, then the "Late" category from Init), so a before/after delta
-            // isolates the current phase.
-            var before = new HashSet<MethodBase>(harmony.GetPatchedMethods());
+            log.Debug("Applying Harmony patches");
             try
             {
-                apply();
+                harmony.PatchAll(Assembly.GetExecutingAssembly());
             }
             catch (Exception ex)
             {
@@ -139,102 +76,25 @@ namespace Shared.Patches
                 return false;
             }
 
-            if (log.IsDebugEnabled)
-            {
-                LogAppliedPatches(log, harmony, before, what);
-            }
-
             return true;
-        }
-
-        // Proof that the patches were applied: debug-log every game method this phase patched (each
-        // with the plugin patch class targeting it) with a running count, then an info line with
-        // the total. A test run can be verified from the log — enable all fixes and confirm every
-        // expected patch appears. Note the applied set depends on the config: patches on hot paths
-        // are applied only while their option is on (OptionalPatch), and the transpilers only if
-        // their option is on at startup. The other Fix* flags gate behavior inside the patch
-        // bodies.
-        private static void LogAppliedPatches(
-            IPluginLogger log,
-            Harmony harmony,
-            HashSet<MethodBase> before,
-            string what
-        )
-        {
-            var applied = harmony
-                .GetPatchedMethods()
-                .Where(method => !before.Contains(method))
-                .OrderBy(method => method.DeclaringType?.FullName, StringComparer.Ordinal)
-                .ThenBy(method => method.ToString(), StringComparer.Ordinal)
-                .ToList();
-
-            var count = 0;
-            foreach (var method in applied)
-                log.Debug($"Patch applied #{++count}: {DescribePatchedMethod(harmony, method)}");
-
-            log.Debug($"Applied {count} {(count == 1 ? "patch" : "patches")} ({what})");
-        }
-
-        // Renders a patched game method as "Namespace.Type.Method(argTypes) <- PatchClass[, ...]",
-        // naming the plugin patch classes (filtered to this Harmony id) whose prefix/postfix/
-        // transpiler/finalizer targets it.
-        private static string DescribePatchedMethod(Harmony harmony, MethodBase method)
-        {
-            var parameters = string.Join(
-                ", ",
-                method.GetParameters().Select(parameter => parameter.ParameterType.Name)
-            );
-            var target = $"{method.DeclaringType?.FullName}.{method.Name}({parameters})";
-
-            var info = Harmony.GetPatchInfo(method);
-            if (info == null)
-                return target;
-
-            var patchClasses = info
-                .Prefixes.Concat(info.Postfixes)
-                .Concat(info.Transpilers)
-                .Concat(info.Finalizers)
-                .Where(patch => patch.owner == harmony.Id)
-                .Select(patch => patch.PatchMethod.DeclaringType?.Name)
-                .Distinct()
-                .ToList();
-
-            return patchClasses.Count == 0
-                ? target
-                : $"{target} <- {string.Join(", ", patchClasses)}";
-        }
-
-        // Called from the early bootstrap on both sides, before the "Early" category is applied.
-        // Those patches run during the game's own startup, so they are configured separately from
-        // the rest, which Configure() handles once the plugin is fully initialized.
-        public static void ConfigureEarly()
-        {
-            MySandboxGamePatchForVoxelPreload.Configure();
-            XmlSerializationReaderPatch.Configure();
         }
 
         // Called after loading configuration, but before patching
         public static void Configure()
         {
-            ConfigureEarly();
-
             MyScriptCompilerPatch.Configure();
             MySafeZonePatch.Configure();
             MySessionComponentSafeZonesPatch.Configure();
-            MyWindowsSystemPatch.Configure();
+            MyPhysicsPatch.Configure();
+            MyPhysicsBodyPatch.Configure();
             MyClusterTreePatch.Configure();
             MyCharacterPatch.Configure();
             MyStorageExtensionsPatch.Configure();
             MyWindTurbinePatch.Configure();
             MyDefinitionIdToStringPatch.Configure();
-            MyImagePatch.Configure();
-            ScriptRunner.Configure();
-            ScriptRoots.Configure();
-            ScriptStandIns.Configure();
             // MyCubeBlockPatch.Configure();
             // MyTerminalBlockPatch.Configure();
-
-            Statistics.Configure();
+            // MyGridTerminalSystemPatch.Configure();
 
             // FIXME: Make this configurable!
             // PhysicsFixes.SetClusterSize(3000f);
@@ -247,52 +107,34 @@ namespace Shared.Patches
             MySafeZonePatch.Update();
             MySessionComponentSafeZonesPatch.Update();
             MyWindTurbinePatch.Update();
-            MySolarGameLogicComponentPatch.Update();
             MyGridConveyorSystemPatch.Update();
-            MyAssemblerPatch.Update();
-            MyToolbarItemTerminalGroupPatch.Update();
-            MyGridTerminalSystemPatch.Update();
-            MyStorageExtensionsPatch.Update();
-            MyGridTargetingPatch.Update();
-            MyEntityPatchForProjection.Update();
-            MyConveyorLinePatch.Update();
-            ScriptRunner.Update();
-            ScriptScheduler.Update();
-            ScriptQuota.Update();
-            ScriptRoots.Update();
-            ScriptStandIns.Update();
             // MyCubeBlockPatch.Update();
             // MyTerminalBlockPatch.Update();
+            // MyGridTerminalSystemPatch.Update();
 
-            // Capture and deliver the runtime statistics once per period. This runs
-            // regardless of the log level (formerly a DEBUG-only log); the dedicated
-            // server forwards each snapshot to the PluginSdk statistics API through the
-            // Publisher, while a debug build additionally logs it. Gated by the
-            // CollectStatistics config option via Statistics.Enabled.
-            if (Statistics.Enabled && Common.Plugin.Tick % Statistics.PeriodTicks == 0)
+#if DEBUG
+            const int period = 10 * 60; // Ticks
+            if (Common.Plugin.Tick % period == 0)
             {
-                var snapshot = Statistics.Capture();
-                Statistics.Publisher?.Invoke(snapshot);
-#if DEBUG
-                LogStatistics(snapshot);
-#endif
+                var log = Common.Plugin.Log;
+                log.Info("Cache hit rates:");
+                log.Info($"- MySafeZonePatch IsSafe: {MySafeZonePatch.IsSafeCacheReport}");
+                log.Info($"- MySafeZonePatch IsActionAllowed: {MySafeZonePatch.IsActionAllowedCacheReport}");
+                log.Info($"- MySessionComponentSafeZonesPatch: {MySessionComponentSafeZonesPatch.CacheReport}");
+                log.Info($"- MyWindTurbinePatch: {MyWindTurbinePatch.CacheReport}");
+                // log.Info($"- MyPathFindingSystemPatch: {MyPathFindingSystemPatch.Report(period)}");
+                // log.Info($"- MyPathFindingSystemEnumeratorPatch: {MyPathFindingSystemEnumeratorPatch.Report(period)}");
+                log.Info($"- MyGridConveyorSystemPatch: {MyGridConveyorSystemPatch.PullItemReports}");
+                foreach (var report in MyGridConveyorSystemPatch.CacheReports)
+                {
+                    log.Info($"- MyGridConveyorSystemPatch: {report}");
+                }
+                // log.Info($"- MyLargeTurretTargetingSystemPatch VisibilityCache: {MyLargeTurretTargetingSystemPatch.VisibilityCacheReport}");
+                // log.Info($"- MyCubeBlockPatch: {MyCubeBlockPatch.CacheReport}");
+                // log.Info($"- MyTerminalBlockPatch: {MyTerminalBlockPatch.CacheReport}");
+                // log.Info($"- MyGridTerminalSystemPatch: {MyGridTerminalSystemPatch.InhibitorReport}");
             }
-        }
-
-#if DEBUG
-        // Logs the captured statistics, preserving the former DEBUG cache-hit-rate dump.
-        private static void LogStatistics(StatisticsSnapshot snapshot)
-        {
-            var log = Common.Plugin.Log;
-            log.Info("Cache hit rates:");
-            foreach (var cache in snapshot.Caches)
-                log.Info(
-                    $"- {cache.Name}: HitRate = {cache.HitRatePercent:0.000}% = {cache.Hits}/{cache.Lookups}; ItemCount = {cache.Size}"
-                );
-            log.Info(
-                $"- Conveyor pull calls: PullItem {snapshot.PullItem}; PullItems {snapshot.PullItems}"
-            );
-        }
 #endif
+        }
     }
 }

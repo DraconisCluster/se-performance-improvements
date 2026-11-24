@@ -5,8 +5,8 @@ using HarmonyLib;
 using Sandbox.Game.Entities;
 using Shared.Config;
 using Shared.Plugin;
-using Shared.Stats;
 using Shared.Tools;
+using TorchPlugin.Shared.Tools;
 using VRage.Game.Entity;
 using VRage.Game.ObjectBuilders.Components;
 
@@ -19,15 +19,6 @@ namespace Shared.Patches
     public static class MySessionComponentSafeZonesPatch
     {
         private static IPluginConfig Config => Common.Config;
-
-        // Applied only while the option is on, see OptionalPatch
-        private static readonly OptionalPatch Optional = new OptionalPatch(
-            typeof(MySessionComponentSafeZonesPatch),
-            () => Config.Enabled && Config.FixSafeAction
-        );
-
-        private static bool Prepare() => Optional.Prepare();
-
         private static bool enabled;
 
         public static void Configure()
@@ -48,47 +39,20 @@ namespace Shared.Patches
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Update()
         {
-            Optional.Update();
-
             Cache.Cleanup();
         }
 
-        private static readonly UintCache<long> Cache = new UintCache<long>(
-            113 * 60,
-            128,
-            collectStats: true
-        );
+        private static readonly UintCache<long> Cache = new UintCache<long>(113 * 60, 128);
 
-        // Reads the cache hit-rate counters into the snapshot, resetting them.
-        public static void CaptureStatistics(StatisticsSnapshot snapshot)
-        {
-            var sample = Cache.Sample();
-            snapshot.Caches.Add(
-                new CacheStatEntry(
-                    "SafeZones.IsActionAllowedForSafezone",
-                    sample.Lookups,
-                    sample.Hits,
-                    sample.Size
-                )
-            );
-        }
+#if DEBUG
+        public static string CacheReport => Cache.Report;
+#endif
 
         [HarmonyPrefix]
-        [HarmonyPatch(
-            "IsActionAllowedForSafezone",
-            typeof(MyEntity),
-            typeof(MySafeZoneAction),
-            typeof(long)
-        )]
-        [EnsureCode("19c76673")]
+        [HarmonyPatch("IsActionAllowedForSafezone", typeof(MyEntity), typeof(MySafeZoneAction), typeof(long))]
+        [EnsureCode("a8373d73")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static bool IsActionAllowedForSafezonePrefix(
-            MyEntity entity,
-            MySafeZoneAction action,
-            long sourceEntityId,
-            ref bool __result,
-            ref long __state
-        )
+        private static bool IsActionAllowedForSafezonePrefix(MyEntity entity, MySafeZoneAction action, long sourceEntityId, ref bool __result, ref long __state)
         {
             if (!enabled)
                 return true;
@@ -114,29 +78,16 @@ namespace Shared.Patches
         }
 
         [HarmonyPostfix]
-        [HarmonyPatch(
-            "IsActionAllowedForSafezone",
-            typeof(MyEntity),
-            typeof(MySafeZoneAction),
-            typeof(long)
-        )]
-        [EnsureCode("19c76673")]
+        [HarmonyPatch("IsActionAllowedForSafezone", typeof(MyEntity), typeof(MySafeZoneAction), typeof(long))]
+        [EnsureCode("a8373d73")]
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static void IsActionAllowedForSafezonePostfix(
-            MyEntity entity,
-            bool __result,
-            long __state
-        )
+        private static void IsActionAllowedForSafezonePostfix(MyEntity entity, bool __result, long __state)
         {
             if (__state == 0)
                 return;
 
             var entityIdLow32Bits = (uint)entity.EntityId;
-            Cache.Store(
-                __state,
-                (__result ? 1u : 0u) ^ entityIdLow32Bits,
-                120u + (entityIdLow32Bits & 15)
-            );
+            Cache.Store(__state, (__result ? 1u : 0u) ^ entityIdLow32Bits, 120u + (entityIdLow32Bits & 15));
         }
     }
 }

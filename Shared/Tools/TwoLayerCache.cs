@@ -28,7 +28,7 @@ namespace Shared.Tools
         public void Clear()
         {
             cache.BeginWriting();
-
+            
             immutableCache = new Dictionary<TK, TV>();
             cache.Clear();
 
@@ -36,6 +36,7 @@ namespace Shared.Tools
             immutableStat.Clear();
             stat.Clear();
 #endif
+            
             cache.FinishWriting();
         }
 
@@ -45,12 +46,13 @@ namespace Shared.Tools
                 return;
 
             cache.BeginReading();
-
+            
             immutableCache = new Dictionary<TK, TV>(cache);
-
+            
 #if COLLECT_STATS
             immutableStat.Reset(immutableCache.Count);
 #endif
+            
             cache.FinishReading();
         }
 
