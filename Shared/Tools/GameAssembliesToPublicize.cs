@@ -1,10 +1,8 @@
 using System.Runtime.CompilerServices;
 
-// Keep these IgnoresAccessChecksTo entries in sync with the <Publicize> entries
-// in ServerPlugin.csproj and ClientPlugin.csproj.
+/* Uncomment to enable publicizer support, extend with the game assemblies you need to publicize
+
 [assembly: IgnoresAccessChecksTo("Sandbox.Game")]
 [assembly: IgnoresAccessChecksTo("SpaceEngineers.Game")]
-[assembly: IgnoresAccessChecksTo("VRage.Math")]
-[assembly: IgnoresAccessChecksTo("VRage.Platform.Windows")]
-[assembly: IgnoresAccessChecksTo("VRage.Render")]
-[assembly: IgnoresAccessChecksTo("VRage.Scripting")]
+
+*/

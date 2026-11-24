@@ -1,22 +1,27 @@
+﻿using NUnit.Framework;
 using Shared.Tools;
-using Xunit;
 
-namespace Tests.Shared.Tools;
-
-public class RateLimiterTests
+namespace Tests.Shared.Tools
 {
-    [Fact]
-    public void RateLimiter_RateLimit()
+    namespace ClientPlugin.Tests
     {
-        var rateLimiter = new RateLimiter(3);
-
-        for (var i = 0; i < 3; i++)
+        [TestFixture]
+        public class RateLimiterTests
         {
-            Assert.True(rateLimiter.Check());
-        }
+            [Test]
+            public void RateLimiter_RateLimit()
+            {
+                var rateLimiter = new RateLimiter(3);
 
-        Assert.False(rateLimiter.Check());
-        Assert.Equal(1, rateLimiter.Reset());
-        Assert.True(rateLimiter.Check());
+                for (var i = 0; i < 3; i++)
+                {
+                    Assert.True(rateLimiter.Check());
+                }
+
+                Assert.False(rateLimiter.Check());
+                Assert.AreEqual(1, rateLimiter.Reset());
+                Assert.True(rateLimiter.Check());
+            }
+        }
     }
 }

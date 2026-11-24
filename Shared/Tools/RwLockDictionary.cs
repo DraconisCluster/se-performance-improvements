@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
+using System.Runtime.Serialization;
 
 namespace Shared.Tools
 {
@@ -7,25 +8,33 @@ namespace Shared.Tools
     {
         private int counter;
 
-        public RwLockDictionary() { }
+        public RwLockDictionary()
+        {
+        }
 
-        public RwLockDictionary(int capacity)
-            : base(capacity) { }
+        public RwLockDictionary(int capacity) : base(capacity)
+        {
+        }
 
-        public RwLockDictionary(IEqualityComparer<TKey> comparer)
-            : base(comparer) { }
+        public RwLockDictionary(IEqualityComparer<TKey> comparer) : base(comparer)
+        {
+        }
 
-        public RwLockDictionary(int capacity, IEqualityComparer<TKey> comparer)
-            : base(capacity, comparer) { }
+        public RwLockDictionary(int capacity, IEqualityComparer<TKey> comparer) : base(capacity, comparer)
+        {
+        }
 
-        public RwLockDictionary(IDictionary<TKey, TValue> dictionary)
-            : base(dictionary) { }
+        public RwLockDictionary(IDictionary<TKey, TValue> dictionary) : base(dictionary)
+        {
+        }
 
-        public RwLockDictionary(
-            IDictionary<TKey, TValue> dictionary,
-            IEqualityComparer<TKey> comparer
-        )
-            : base(dictionary, comparer) { }
+        public RwLockDictionary(IDictionary<TKey, TValue> dictionary, IEqualityComparer<TKey> comparer) : base(dictionary, comparer)
+        {
+        }
+
+        protected RwLockDictionary(SerializationInfo info, StreamingContext context) : base(info, context)
+        {
+        }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void BeginReading()

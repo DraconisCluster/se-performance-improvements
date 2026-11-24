@@ -19,7 +19,6 @@ namespace Shared.Patches
         private static IPluginConfig Config => Common.Config;
 
         private static readonly ConveyorStat Stat = new ConveyorStat();
-
         public static string Report(int period) => Stat.FullReport(period);
 
         // ReSharper disable once UnusedMember.Local

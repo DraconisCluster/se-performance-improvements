@@ -15,38 +15,25 @@ namespace Shared.Patches
     {
         private static IPluginConfig Config => Common.Config;
 
-        // Applied only while the option is on, see OptionalPatch
-        private static readonly OptionalPatch Optional = new OptionalPatch(
-            typeof(MyEntityPatchForProjection),
-            () => Config.FixProjection
-        );
-
-        private static bool Prepare() => Optional.Prepare();
-
-        public static void Update() => Optional.Update();
-
         [HarmonyPostfix]
         [HarmonyPatch(nameof(MyEntity.OnAddedToScene))]
         private static void OnAddedToScenePostfix(MyEntity __instance)
         {
-            /* Disables functional blocks on preview grids without physics.
-             * These are the projected functional blocks (MGP subgrids included),
-             * because MyGridClipboard.ChangeClipboardPreview sets IsPreview and
-             * CreatePhysics = false before the preview grid is added to the scene.
+            /* Disables functional blocks on grids with no physics.
+             * These should only be the projected functional blocks.
              *
              * Unfortunately we cannot test functionalBlock.CubeGrid?.Projector
              * here, because that is set after the preview grid is added to the scene.
              * Setting NeedsUpdate to NONE does not work here. Solving it differently
              * would have a constant CPU overhead, which should be avoided.
              *
-             * The physics check alone is not enough: mods may spawn hidden grids
-             * without physics, like Scope Framework does for its camera block.
+             * It may have side-effects should a plugin provide physics-less subgrids.
+             * In such a case disable this fix and use the Multigrid Projector plugin
+             * to fix this specific case only for the welders in a different way.
              */
-            if (
-                Config.FixProjection
-                && __instance is MyFunctionalBlock functionalBlock
-                && functionalBlock.CubeGrid is { IsPreview: true, Physics: null }
-            )
+            if (Config.FixProjection &&
+                __instance is MyFunctionalBlock functionalBlock &&
+                functionalBlock.CubeGrid?.Physics == null)
             {
                 functionalBlock.Enabled = false;
             }

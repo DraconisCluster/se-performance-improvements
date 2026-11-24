@@ -19,7 +19,6 @@ namespace Shared.Tools
 #if DEBUG
         public readonly CacheStat Stat = new CacheStat();
         public string Report => Stat.Report;
-
         public IEnumerable<TR> Map<TR>(Func<TV, TR> fn)
         {
             cache.BeginReading();
@@ -45,8 +44,6 @@ namespace Shared.Tools
         }
 
         private readonly RwLockDictionary<TK, Item> cache = new RwLockDictionary<TK, Item>();
-
-        public int Count => cache.Count;
 
         public Cache(int cleanupPeriod, int maxDeleteCount = 64)
         {

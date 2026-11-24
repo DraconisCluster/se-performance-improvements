@@ -1,8 +1,6 @@
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Sandbox.Game.GameSystems.Conveyors;
-using Shared.Config;
-using Shared.Plugin;
 using Shared.Tools;
 
 namespace Shared.Patches
@@ -11,18 +9,6 @@ namespace Shared.Patches
     [HarmonyPatch(typeof(MyConveyorLine))]
     public static class MyConveyorLinePatch
     {
-        private static IPluginConfig Config => Common.Config;
-
-        // Applied only while the option is on, see OptionalPatch
-        private static readonly OptionalPatch Optional = new OptionalPatch(
-            typeof(MyConveyorLinePatch),
-            () => Config.Enabled && Config.FixGridMerge
-        );
-
-        private static bool Prepare() => Optional.Prepare();
-
-        public static void Update() => Optional.Update();
-
         // ReSharper disable once UnusedMember.Local
         [HarmonyPrefix]
         [HarmonyPatch(nameof(MyConveyorLine.UpdateIsWorking))]

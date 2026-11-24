@@ -46,16 +46,14 @@ namespace Shared.Patches
             if (!enabled)
                 TwoLayerCache.Clear();
         }
-
-        private static readonly TwoLayerCache<long, string> TwoLayerCache =
-            new TwoLayerCache<long, string>();
-
-        private const long FillPeriod = 17 * 60; // ticks
+        
+        private static readonly TwoLayerCache<long, string> TwoLayerCache = new TwoLayerCache<long, string>();
+        
+        private const long FillPeriod = 17 * 60;  // ticks
         private static long nextFill = FillPeriod;
 
 #if LOG_STATS
-        public static string CacheReport =>
-            $"L1: {TwoLayerCache.ImmutableReport} | L2: {TwoLayerCache.Report}";
+        public static string CacheReport => $"L1: {TwoLayerCache.ImmutableReport} | L2: {TwoLayerCache.Report}";
 #endif
 
         public static void Update()
@@ -65,7 +63,7 @@ namespace Shared.Patches
                 return;
 
             nextFill = tick + FillPeriod;
-
+            
 #if LOG_STATS
             Logger.Info(CacheReport);
 #endif
@@ -102,10 +100,10 @@ namespace Shared.Patches
         private static string Format(MyDefinitionId definitionId)
         {
             const string DefinitionNull = "(null)";
-
+            
             var typeId = definitionId.TypeId;
             var typeName = typeId.IsNull ? DefinitionNull : typeId.ToString();
-
+            
             var subtypeName = definitionId.SubtypeName;
             if (string.IsNullOrEmpty(subtypeName))
             {
