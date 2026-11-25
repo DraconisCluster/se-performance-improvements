@@ -30,8 +30,10 @@ namespace Shared.Patches
 
         private static readonly RwLockDictionary<TLogicalGroup, UintCache<ulong>> ReachableCaches = new RwLockDictionary<TLogicalGroup, UintCache<ulong>>();
 
+        // Null if a game update renames the property
         private static readonly Func<MyUpdateableGridSystem, MyCubeGrid> GetGrid =
-            AccessTools.MethodDelegate<Func<MyUpdateableGridSystem, MyCubeGrid>>(AccessTools.PropertyGetter(typeof(MyUpdateableGridSystem), "Grid"));
+            AccessTools.PropertyGetter(typeof(MyUpdateableGridSystem), "Grid") is { } getter
+                ? AccessTools.MethodDelegate<Func<MyUpdateableGridSystem, MyCubeGrid>>(getter) : null;
 
         // Conveyor lines can be one-way, so the key keeps the direction
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -57,10 +59,15 @@ namespace Shared.Patches
             if (!Config.FixConveyor && ReachableCaches.Count != 0)
             {
                 // Drop all caches on turning OFF this fix
-                ReachableCaches.BeginWriting();
-                ReachableCaches.Clear();
-                ReachableCaches.FinishWriting();
+                ClearCaches();
             }
+        }
+
+        private static void ClearCaches()
+        {
+            ReachableCaches.BeginWriting();
+            ReachableCaches.Clear();
+            ReachableCaches.FinishWriting();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -198,7 +205,12 @@ namespace Shared.Patches
         [EnsureCode("ce91ca1e")]
         private static void FlagForRecomputationPostfix(MyGridConveyorSystem __instance)
         {
-            if (Config.FixConveyor)
+            if (!Config.FixConveyor)
+                return;
+
+            if (GetGrid == null)
+                ClearCaches();
+            else
                 InvalidateCache(GetGrid(__instance));
         }
 
