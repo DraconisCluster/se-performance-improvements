@@ -170,10 +170,7 @@ namespace Shared.Patches
                 }
                 catch (IOException)
                 {
-                    // All I/O errors are retried for 1 second
-                    // This exception can happen on trying to compile the same script multiple times concurrently:
-                    // HResult = -2147024864
-                    // Message = "The process cannot access the file 'C:\Torch\Instance\PerformanceImprovements\Cache\CompiledInGameScripts\9daecd2c41d387772f8edcc792da89a6b776ec2e.cache' because it is being used by another process."
+                    // Retried for 1 second, e.g. while antivirus holds the file
                 }
                 catch (Exception e1)
                 {
@@ -208,8 +205,23 @@ namespace Shared.Patches
 #endif
             try
             {
-                using (var fileStream = File.OpenWrite(cachePath))
-                    assemblyStream.CopyTo(fileStream);
+                // Write a unique temp file and move it into place, so readers never see a partial file
+                var tempPath = $"{cachePath}.{Guid.NewGuid():N}.tmp.cache";
+                try
+                {
+                    using (var fileStream = File.Create(tempPath))
+                        assemblyStream.CopyTo(fileStream);
+
+                    File.Move(tempPath, cachePath);
+                }
+                catch (IOException) when (File.Exists(cachePath))
+                {
+                    // Stored meanwhile by a concurrent compilation of the same scripts
+                }
+                finally
+                {
+                    File.Delete(tempPath);
+                }
             }
             catch (IOException e)
             {
@@ -244,43 +256,36 @@ namespace Shared.Patches
             return true;
         }
 
-        private static void XorHashIntoAccumulator(byte[] accumulator, byte[] hash)
-        {
-            for (var i = 0; i < accumulator.Length; i++)
-                accumulator[i] ^= hash[i];
-        }
-
         private static string GetScriptsHash(MyScriptCompiler myScriptCompiler, IEnumerable<Script> scripts)
         {
-            const int size = 20;
-            var hash = new byte[size];
-
+            byte[] hash;
             using (var sha1 = SHA1.Create())
             {
-                // Include .NET version in the hash to prevent loading assemblies compiled on different .NET versions
-                var frameworkVersion = RuntimeInformation.FrameworkDescription;
-                var result = sha1.ComputeHash(Encoding.UTF8.GetBytes(frameworkVersion));
-                XorHashIntoAccumulator(hash, result);
-                
-                var conditionalCompilationSymbols = (HashSet<string>)ConditionalCompilationSymbolsField.GetValue(myScriptCompiler); 
-                if (conditionalCompilationSymbols != null)
+                // BinaryWriter length-prefixes each string, so the field sequence is unambiguous
+                using (var writer = new BinaryWriter(new CryptoStream(Stream.Null, sha1, CryptoStreamMode.Write), Encoding.UTF8))
                 {
-                    foreach (var symbol in conditionalCompilationSymbols)
+                    // Include .NET version in the hash to prevent loading assemblies compiled on different .NET versions
+                    writer.Write(RuntimeInformation.FrameworkDescription);
+
+                    var conditionalCompilationSymbols = (HashSet<string>)ConditionalCompilationSymbolsField.GetValue(myScriptCompiler);
+                    var symbols = conditionalCompilationSymbols?.OrderBy(symbol => symbol, StringComparer.Ordinal).ToList() ?? new List<string>();
+                    writer.Write(symbols.Count);
+                    foreach (var symbol in symbols)
+                        writer.Write(symbol);
+
+                    // Scripts in compilation order
+                    foreach (var script in scripts)
                     {
-                        result = sha1.ComputeHash(Encoding.UTF8.GetBytes(symbol));
-                        XorHashIntoAccumulator(hash, result);
+                        writer.Write(script.Name ?? "");
+                        writer.Write(script.Code ?? "");
                     }
                 }
 
-                foreach (var script in scripts)
-                {
-                    result = sha1.ComputeHash(Encoding.UTF8.GetBytes(script.Code));
-                    XorHashIntoAccumulator(hash, result);
-                }
+                hash = sha1.Hash;
             }
 
             var hexHash = new StringBuilder();
-            for (var i = 0; i < size; i++)
+            for (var i = 0; i < hash.Length; i++)
                 hexHash.Append(hash[i].ToString("x2"));
 
             return hexHash.ToString();

@@ -1,6 +1,7 @@
 // #define LIST_ALL_TYPES
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
@@ -23,6 +24,9 @@ namespace Shared.Patches
             }
 #endif
 
+            // Patch classes to leave out, because the game code they target has changed
+            var skippedPatchTypes = new HashSet<Type>();
+
             var isOldDotNetFramework = Environment.Version.Major < 5;
             if (isOldDotNetFramework &&
                 Common.Plugin.Config.DetectCodeChanges &&
@@ -39,24 +43,27 @@ namespace Shared.Patches
                         log.Critical("Detected conflicting code changes:");
                         foreach (var codeChange in codeChanges)
                             log.Info(codeChange.ToString());
-                        
+
                         if (throwOnFailedVerification)
                         {
                             throw new Exception("Detected conflicting code changes");
                         }
-                        
-                        return false;
+
+                        // Only the affected patches are left out. Disabling the whole plugin would also
+                        // lose the patches whose targets did not change (script cache, GC removal, ...).
+                        foreach (var codeChange in codeChanges)
+                            skippedPatchTypes.UnionWith(GetDependentPatchTypes(codeChange.PatchType));
                     }
                 }
                 catch (Exception ex)
                 {
                     log.Error(ex, "Failed to scan for conflicting code changes");
-                    
+
                     if (throwOnFailedVerification)
                     {
                         throw;
                     }
-                    
+
                     return false;
                 }
             }
@@ -68,16 +75,46 @@ namespace Shared.Patches
             log.Debug("Applying Harmony patches");
             try
             {
-                harmony.PatchAll(Assembly.GetExecutingAssembly());
+                // Same as harmony.PatchAll, except for the skipped classes
+                foreach (var type in AccessTools.GetTypesFromAssembly(Assembly.GetExecutingAssembly()).Where(t => t.HasHarmonyAttribute()))
+                {
+                    if (skippedPatchTypes.Contains(type))
+                    {
+                        log.Critical($"Patch class {type.Name} is NOT applied, because the game code it targets has changed");
+                        continue;
+                    }
+
+                    harmony.CreateClassProcessor(type).Patch();
+                }
             }
             catch (Exception ex)
             {
                 log.Critical(ex, "Failed to apply Harmony patches");
+
+                // Harmony does not roll back the patches applied before the failure
+                try
+                {
+                    harmony.UnpatchAll(harmony.Id);
+                }
+                catch (Exception unpatchException)
+                {
+                    log.Critical(unpatchException, "Failed to remove the Harmony patches already applied");
+                }
+
                 return false;
             }
 
             return true;
         }
+
+        // Patch classes which work only together: one caches what the others invalidate
+        private static readonly Type[][] PatchGroups =
+        {
+            new[] { typeof(MyGridConveyorSystemPatch), typeof(MyCubeGridPatchForConveyor), typeof(MyCubeBlockPatchForConveyor), typeof(MyShipConnectorPatchForConveyor), typeof(MyConveyorLinePatchForConveyor) },
+        };
+
+        private static IEnumerable<Type> GetDependentPatchTypes(Type patchType) =>
+            PatchGroups.FirstOrDefault(g => g.Contains(patchType)) ?? new[] { patchType };
 
         // Called after loading configuration, but before patching
         public static void Configure()
@@ -86,7 +123,6 @@ namespace Shared.Patches
             MySafeZonePatch.Configure();
             MySessionComponentSafeZonesPatch.Configure();
             MyPhysicsPatch.Configure();
-            MyPhysicsBodyPatch.Configure();
             MyClusterTreePatch.Configure();
             MyCharacterPatch.Configure();
             MyStorageExtensionsPatch.Configure();

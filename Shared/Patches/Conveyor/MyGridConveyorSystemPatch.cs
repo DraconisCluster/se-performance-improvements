@@ -30,6 +30,19 @@ namespace Shared.Patches
 
         private static readonly RwLockDictionary<TLogicalGroup, UintCache<ulong>> ReachableCaches = new RwLockDictionary<TLogicalGroup, UintCache<ulong>>();
 
+        // Null if a game update renames the property
+        private static readonly Func<MyUpdateableGridSystem, MyCubeGrid> GetGrid =
+            AccessTools.PropertyGetter(typeof(MyUpdateableGridSystem), "Grid") is { } getter
+                ? AccessTools.MethodDelegate<Func<MyUpdateableGridSystem, MyCubeGrid>>(getter) : null;
+
+        // Conveyor lines can be one-way, so the key keeps the direction
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static ulong GetKey(IMyConveyorEndpoint from, IMyConveyorEndpoint to)
+        {
+            var toId = (ulong)(to?.CubeBlock.EntityId ?? 0);
+            return (ulong)(from?.CubeBlock.EntityId ?? 0) ^ (toId << 32 | toId >> 32);
+        }
+
 #if DEBUG
         public static IEnumerable<string> CacheReports => ReachableCaches.Values.Select(c => c.Report);
 #endif
@@ -46,10 +59,15 @@ namespace Shared.Patches
             if (!Config.FixConveyor && ReachableCaches.Count != 0)
             {
                 // Drop all caches on turning OFF this fix
-                ReachableCaches.BeginWriting();
-                ReachableCaches.Clear();
-                ReachableCaches.FinishWriting();
+                ClearCaches();
             }
+        }
+
+        private static void ClearCaches()
+        {
+            ReachableCaches.BeginWriting();
+            ReachableCaches.Clear();
+            ReachableCaches.FinishWriting();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -136,11 +154,11 @@ namespace Shared.Patches
             IMyConveyorEndpoint from,
             IMyConveyorEndpoint to,
             ref bool __result,
-            ref (UintCache<ulong>, ulong) __state)
+            ref (UintCache<ulong>, ulong, int) __state)
         {
             if (!Config.FixConveyor)
             {
-                __state = (null, 0);
+                __state = (null, 0, 0);
                 return true;
             }
 
@@ -153,7 +171,7 @@ namespace Shared.Patches
                     return false;
                 }
 
-                var key = (ulong)(from?.CubeBlock.EntityId ?? 0) ^ (ulong)(to?.CubeBlock.EntityId ?? 0);
+                var key = GetKey(from, to);
 
                 if (cache.TryGetValue(key, out var value))
                 {
@@ -161,11 +179,11 @@ namespace Shared.Patches
                     return false;
                 }
 
-                __state = (cache, key);
+                __state = (cache, key, cache.Generation);
             } catch (ArgumentNullException)
             {
                 Log.Warning("Safely suppressed a crash in MyGridConveyorSystemPatch.ReachablePrefix (from={0}, to={1})", from?.CubeBlock.EntityId ?? 0, to?.CubeBlock.EntityId ?? 0);
-                __state = (null, 0);
+                __state = (null, 0, 0);
             }
 
             return true;
@@ -176,9 +194,24 @@ namespace Shared.Patches
         [EnsureCode("73bf029a")]
         private static void ReachablePostfix(
             bool __result,
-            ref (UintCache<ulong>, ulong) __state)
+            ref (UintCache<ulong>, ulong, int) __state)
         {
-            __state.Item1?.Store(__state.Item2, __result ? 1u : 0u, 999999999);
+            __state.Item1?.Store(__state.Item2, __result ? 1u : 0u, 999999999, __state.Item3);
+        }
+
+        // Called when conveyor connectivity changes without a block or group change (e.g. lines losing power)
+        [HarmonyPostfix]
+        [HarmonyPatch(nameof(MyGridConveyorSystem.FlagForRecomputation))]
+        [EnsureCode("ce91ca1e")]
+        private static void FlagForRecomputationPostfix(MyGridConveyorSystem __instance)
+        {
+            if (!Config.FixConveyor)
+                return;
+
+            if (GetGrid == null)
+                ClearCaches();
+            else
+                InvalidateCache(GetGrid(__instance));
         }
 
         [HarmonyPrefix]
@@ -204,7 +237,7 @@ namespace Shared.Patches
                     return false;
                 }
 
-                var key = (ulong)(sourceEndpoint?.CubeBlock.EntityId ?? 0) ^ (ulong)(endPointEndpoint?.CubeBlock.EntityId ?? 0);
+                var key = GetKey(sourceEndpoint, endPointEndpoint);
 
                 if (cache.TryGetValue(key, out var value) && value == 0)
                 {

@@ -46,7 +46,7 @@ namespace Shared.Config
         // Reduces memory allocations in IMyStorageExtensions.GetMaterialAt
         bool FixVoxel { get; set; }
 
-        // Optimizes the MyPhysicsBody.RigidBody getter (needs restart)
+        // Optimizes MyClusterTree.ReorderClusters and the physics thread count (needs restart)
         bool FixPhysics { get; set; }
 
         // Disables character footprint logic on server side (needs restart)

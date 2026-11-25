@@ -40,14 +40,21 @@ namespace Shared.Patches
         [EnsureCode("801d57b2")]
         private static void MergeGridInternalPostfix(MyCubeGrid __instance, bool __state)
         {
-            if (!__state)
-                return;
-
-            if (--CallDepth.Value > 0)
+            if (!__state || CallDepth.Value > 1)
                 return;
 
             // Update the conveyor system only after the merge is complete
             __instance.GridSystems.ConveyorSystem.FlagForRecomputation();
+        }
+
+        // ReSharper disable once UnusedMember.Local
+        [HarmonyFinalizer]
+        [HarmonyPatch("MergeGridInternal")]
+        [EnsureCode("801d57b2")]
+        private static void MergeGridInternalFinalizer(bool __state)
+        {
+            if (__state)
+                CallDepth.Value--;
         }
 
         // ReSharper disable once UnusedMember.Local
@@ -69,12 +76,12 @@ namespace Shared.Patches
         }
 
         // ReSharper disable once UnusedMember.Local
-        [HarmonyPostfix]
+        [HarmonyFinalizer]
         [HarmonyPatch("PasteBlocksServer")]
         // Not verifying due to other plugins are also patching this method, see:
         // https://discord.com/channels/649626651772190740/1240402870680162476
         // [EnsureCode("abb0d7f4")]
-        private static void PasteBlocksServerPostfix(bool? __state)
+        private static void PasteBlocksServerFinalizer(bool? __state)
         {
             if (__state == null)
                 return;
