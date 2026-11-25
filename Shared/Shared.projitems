@@ -14,6 +14,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)Patches\Connector\MyShipConnectorPatch.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Patches\Conveyor\MyAssemblerPatch.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Patches\Conveyor\MyCubeBlockPatchForConveyor.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Patches\Conveyor\MyConveyorLinePatchForConveyor.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Patches\Conveyor\MyCubeGridPatchForConveyor.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Patches\Conveyor\MyGridConveyorSystemPatch.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Patches\Conveyor\MyPathfindingDataPatch.cs" />

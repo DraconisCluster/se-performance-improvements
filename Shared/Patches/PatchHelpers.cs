@@ -110,7 +110,7 @@ namespace Shared.Patches
         // Patch classes which work only together: one caches what the others invalidate
         private static readonly Type[][] PatchGroups =
         {
-            new[] { typeof(MyGridConveyorSystemPatch), typeof(MyCubeGridPatchForConveyor), typeof(MyCubeBlockPatchForConveyor), typeof(MyShipConnectorPatchForConveyor) },
+            new[] { typeof(MyGridConveyorSystemPatch), typeof(MyCubeGridPatchForConveyor), typeof(MyCubeBlockPatchForConveyor), typeof(MyShipConnectorPatchForConveyor), typeof(MyConveyorLinePatchForConveyor) },
         };
 
         private static IEnumerable<Type> GetDependentPatchTypes(Type patchType) =>
