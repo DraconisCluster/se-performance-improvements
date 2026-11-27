@@ -1,7 +1,6 @@
 <?xml version="1.0"?>
 <PluginManifest xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <Name>PerformanceImprovements</Name>
-  <Guid>c2cf3ed2-c6ac-4dbd-ab9a-613a1ef67784</Guid>
-  <Repository>PerformanceImprovements</Repository>
-  <Version>v1.11.22.0</Version>
+  <Guid>f4b2c663-8aa9-4bec-aa91-f12dc224a8e0</Guid>
+  <Version>v1.11.22.1</Version>
 </PluginManifest>
